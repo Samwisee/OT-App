@@ -2454,6 +2454,136 @@ function ClientDetail({ entity, isGroup, onUpdate }) {
   );
 }
 
+// ─── SHARE MODAL ─────────────────────────────────────────────────────────────
+function ShareModal({ group, onClose }) {
+  const url = getPresetURL(group);
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.45)",
+          zIndex: 300,
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          width: "min(92vw, 360px)",
+          background: C.cream,
+          borderRadius: 24,
+          zIndex: 301,
+          padding: "22px 22px 26px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.22)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                fontFamily: "Lora,serif",
+                fontWeight: 700,
+                fontSize: 17,
+                color: C.navy,
+              }}
+            >
+              {group.name}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+              {group.tools.length} tool{group.tools.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 9,
+              border: "none",
+              background: C.warm,
+              color: C.navy,
+              cursor: "pointer",
+              fontSize: 16,
+              fontWeight: "bold",
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Instruction */}
+        <div
+          style={{
+            background: C.tealBg,
+            borderRadius: 12,
+            padding: "10px 13px",
+            fontSize: 12,
+            color: C.navyLight,
+            lineHeight: 1.6,
+          }}
+        >
+          <strong style={{ color: C.teal }}>📱 How to share:</strong> The family
+          scans this QR with their camera. Their home screen will show these
+          preset tasks first.
+        </div>
+
+        {/* QR code */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <QRCode value={url} size={200} />
+        </div>
+
+        {/* URL */}
+        <div
+          style={{
+            background: "#F4F4F4",
+            borderRadius: 10,
+            padding: "8px 12px",
+            fontSize: 10,
+            color: C.muted,
+            wordBreak: "break-all",
+            fontFamily: "monospace",
+          }}
+        >
+          {url}
+        </div>
+
+        {/* Copy button */}
+        <button
+          onClick={copy}
+          style={{
+            padding: "11px",
+            borderRadius: 14,
+            border: "none",
+            background: copied ? C.sage : C.teal,
+            color: "white",
+            fontWeight: "bold",
+            cursor: "pointer",
+            fontSize: 14,
+            transition: "background 0.2s",
+          }}
+        >
+          {copied ? "✓ Copied!" : "Copy Link"}
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── DOMAINS config for home screen ──────────────────────────────────────────
 const DOMAINS = [
   {
@@ -2821,15 +2951,9 @@ export default function App() {
   const presetParam = params.get("preset");
 
   const [groups, setGroups] = useLocalStorage("ot_groups", []);
-  const [homePreset, setHomePreset] = useLocalStorage("ot_home_preset", null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  useEffect(() => {
-    if (presetParam) {
-      const decoded = decodePresetConfig(presetParam);
-      if (decoded) setHomePreset(decoded);
-    }
-  }, []);
+  const [activePreset, setActivePreset] = useState(null);
+  const [shareGroup, setShareGroup] = useState(null);
 
   // Home nav state — jump straight to tool if ?tool= param present
   const initTool = toolParam && TOOL_COMPONENTS[toolParam] ? toolParam : null;
@@ -2840,8 +2964,9 @@ export default function App() {
   const [activeTool, setActiveTool] = useState(initTool);
 
   function back() {
-    if (activeTool) setActiveTool(null);
-    else setActiveDomain(null);
+    if (activeTool) { setActiveTool(null); return; }
+    if (activePreset) { setActivePreset(null); return; }
+    setActiveDomain(null);
   }
 
   const domain = DOMAINS.find((d) => d.id === activeDomain);
@@ -2855,7 +2980,9 @@ export default function App() {
     ? domMeta?.bg || C.cream
     : activeDomain
       ? domain.bg
-      : C.cream;
+      : activePreset
+        ? C.lavBg
+        : C.cream;
 
   return (
     <div
@@ -2890,7 +3017,7 @@ export default function App() {
           gap: 10,
         }}
       >
-        {activeDomain || activeTool ? (
+        {activeDomain || activeTool || activePreset ? (
           <button
             onClick={back}
             style={{
@@ -2922,16 +3049,20 @@ export default function App() {
           >
             {activeTool
               ? toolMeta.label
-              : activeDomain
-                ? domain.label
-                : "OT Toolkit"}
+              : activePreset
+                ? activePreset.name
+                : activeDomain
+                  ? domain.label
+                  : "OT Toolkit"}
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
             {activeTool
               ? `Ages ${toolMeta.ages}`
-              : activeDomain
-                ? `${domain.tools.length} tools`
-                : "Paediatric Session Tools"}
+              : activePreset
+                ? `${activePreset.tools.length} tool${activePreset.tools.length !== 1 ? "s" : ""}`
+                : activeDomain
+                  ? `${domain.tools.length} tools`
+                  : "Paediatric Session Tools"}
           </div>
         </div>
         {/* Hamburger */}
@@ -2970,145 +3101,116 @@ export default function App() {
       <div
         style={{ padding: "20px 20px 48px", maxWidth: 480, margin: "0 auto" }}
       >
-        {/* Home — preset tasks + domain cards */}
-        {!activeDomain && !activeTool && (
+        {/* Home */}
+        {!activeDomain && !activePreset && !activeTool && (
           <div style={{ animation: "fadeUp 0.4s ease" }}>
-            {/* Preset tasks section — shown first when a preset is active */}
-            {homePreset && homePreset.t && homePreset.t.length > 0 && (
+            {/* Preset cards */}
+            {groups.length > 0 && (
               <div style={{ marginBottom: 28 }}>
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
+                    fontFamily: "Lora,Georgia,serif",
+                    fontWeight: 700,
+                    fontSize: 16,
+                    color: C.navy,
                     marginBottom: 12,
                   }}
                 >
-                  <div>
+                  Preset Tasks
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {groups.map((g, i) => (
                     <div
+                      key={g.id}
                       style={{
-                        fontFamily: "Lora,Georgia,serif",
-                        fontWeight: 700,
-                        fontSize: 18,
-                        color: C.navy,
+                        background: "white",
+                        borderRadius: 18,
+                        padding: "14px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        boxShadow: `0 3px 14px ${C.lavender}18`,
+                        animation: `fadeUp 0.4s ease ${i * 0.07}s both`,
                       }}
                     >
-                      {homePreset.n || "Preset Tasks"}
-                    </div>
-                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                      Your assigned activities
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setHomePreset(null)}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 8,
-                      border: "none",
-                      background: C.coralBg,
-                      color: C.coral,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
-                >
-                  {homePreset.t.map((t, i) => {
-                    const meta = ALL_TOOLS.find((a) => a.id === t.id);
-                    const dm = DOMAIN_META[meta?.domain];
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setActiveTool(t.id)}
+                      <div
                         style={{
-                          width: "100%",
+                          width: 44,
+                          height: 44,
+                          borderRadius: 13,
+                          background: C.lavBg,
                           display: "flex",
                           alignItems: "center",
-                          gap: 14,
-                          padding: "16px 18px",
-                          borderRadius: 18,
-                          border: "none",
-                          background: "white",
+                          justifyContent: "center",
+                          fontSize: 20,
+                          flexShrink: 0,
                           cursor: "pointer",
-                          textAlign: "left",
-                          boxShadow: `0 3px 14px ${dm?.color || C.teal}14`,
-                          animation: `fadeUp 0.35s ease ${i * 0.06}s both`,
                         }}
+                        onClick={() => setActivePreset(g)}
+                      >
+                        📋
+                      </div>
+                      <div
+                        style={{ flex: 1, cursor: "pointer", minWidth: 0 }}
+                        onClick={() => setActivePreset(g)}
                       >
                         <div
                           style={{
-                            width: 46,
-                            height: 46,
-                            borderRadius: 13,
-                            background: dm?.bg,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 22,
-                            flexShrink: 0,
+                            fontWeight: 800,
+                            fontSize: 15,
+                            color: C.navy,
+                            fontFamily: "Lora,serif",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                           }}
                         >
-                          {meta?.icon}
+                          {g.name}
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontWeight: 800,
-                              fontSize: 15,
-                              color: C.navy,
-                              fontFamily: "Lora,serif",
-                            }}
-                          >
-                            {meta?.label}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: C.muted,
-                              marginTop: 2,
-                            }}
-                          >
-                            {dm?.label} · Ages {meta?.ages}
-                          </div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                          {g.tools.length} tool{g.tools.length !== 1 ? "s" : ""}
                         </div>
-                        <div
-                          style={{
-                            color: dm?.color,
-                            fontSize: 20,
-                            opacity: 0.5,
-                          }}
-                        >
-                          ›
-                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShareGroup(g)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "7px 12px",
+                          borderRadius: 10,
+                          border: "none",
+                          background: C.tealBg,
+                          color: C.teal,
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          flexShrink: 0,
+                        }}
+                      >
+                        📤 Share
                       </button>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
+            {/* Domain cards */}
             <div style={{ marginBottom: 24 }}>
               <div
                 style={{
                   fontFamily: "Lora,Georgia,serif",
-                  fontSize: homePreset ? 20 : 26,
+                  fontSize: groups.length > 0 ? 16 : 26,
                   fontWeight: 700,
                   color: C.navy,
                   lineHeight: 1.2,
                 }}
               >
-                {homePreset ? "All Tools" : "What are we working on today?"}
+                {groups.length > 0 ? "All Tools" : "What are we working on today?"}
               </div>
               <div style={{ color: C.muted, marginTop: 6, fontSize: 14 }}>
-                {homePreset
-                  ? "Browse by goal area"
-                  : "Choose a goal area to get started"}
+                {groups.length > 0 ? "Browse by goal area" : "Choose a goal area to get started"}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3193,6 +3295,115 @@ export default function App() {
                 10 tools · 3 domains · Presets via ☰
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Preset — tool list */}
+        {activePreset && !activeTool && (
+          <div style={{ animation: "fadeUp 0.35s ease" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ color: C.muted, fontSize: 13 }}>
+                Tap a tool to open it
+              </div>
+              <button
+                onClick={() => setShareGroup(activePreset)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "7px 12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: C.tealBg,
+                  color: C.teal,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
+              >
+                📤 Share
+              </button>
+            </div>
+            {activePreset.tools.length === 0 ? (
+              <div
+                style={{
+                  color: C.muted,
+                  fontSize: 14,
+                  textAlign: "center",
+                  padding: "32px 0",
+                }}
+              >
+                No tools in this preset yet. Edit it via ☰
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {activePreset.tools.map((t, i) => {
+                  const meta = ALL_TOOLS.find((a) => a.id === t.id);
+                  const dm = DOMAIN_META[meta?.domain];
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveTool(t.id)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: "16px 18px",
+                        borderRadius: 18,
+                        border: "none",
+                        background: "white",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        boxShadow: `0 3px 14px ${dm?.color || C.lavender}14`,
+                        animation: `fadeUp 0.35s ease ${i * 0.06}s both`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 13,
+                          background: dm?.bg,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 22,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {meta?.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontWeight: 800,
+                            fontSize: 15,
+                            color: C.navy,
+                            fontFamily: "Lora,serif",
+                          }}
+                        >
+                          {meta?.label}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                          {dm?.label} · Ages {meta?.ages}
+                        </div>
+                      </div>
+                      <div style={{ color: dm?.color, fontSize: 20, opacity: 0.5 }}>
+                        ›
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
