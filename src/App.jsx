@@ -152,7 +152,7 @@ function decodeClientConfig(str) {
   }
 }
 function getToolURL(toolId) {
-  const base = window.location.href.split("?")[0];
+  const base = "https://ot-app-sigma.vercel.app";
   return `${base}?tool=${toolId}`;
 }
 
