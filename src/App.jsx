@@ -120,8 +120,6 @@ const ALL_TOOLS = [
 ];
 
 // ─── QR CODE (pure JS, no library) ───────────────────────────────────────────
-// Minimal QR renderer using qrcode-svg approach via a CDN-free data matrix visual
-// We'll use a tiny inline QR via the Google Charts API encoded as img src
 function QRCode({ value, size = 180 }) {
   const encoded = encodeURIComponent(value);
   const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&bgcolor=ffffff&color=1E2D3D&margin=2`;
@@ -2953,7 +2951,7 @@ export default function App() {
   const [groups, setGroups] = useLocalStorage("ot_groups", []);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
-  const [shareGroup, setShareGroup] = useState(null);
+  const [shareGroup, setShareGroup] = useState(null); // New state for share modal
 
   // Home nav state — jump straight to tool if ?tool= param present
   const initTool = toolParam && TOOL_COMPONENTS[toolParam] ? toolParam : null;
@@ -2964,8 +2962,14 @@ export default function App() {
   const [activeTool, setActiveTool] = useState(initTool);
 
   function back() {
-    if (activeTool) { setActiveTool(null); return; }
-    if (activePreset) { setActivePreset(null); return; }
+    if (activeTool) {
+      setActiveTool(null);
+      return;
+    }
+    if (activePreset) {
+      setActivePreset(null);
+      return;
+    }
     setActiveDomain(null);
   }
 
@@ -3118,7 +3122,9 @@ export default function App() {
                 >
                   Preset Tasks
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
                   {groups.map((g, i) => (
                     <div
                       key={g.id}
@@ -3167,7 +3173,9 @@ export default function App() {
                         >
                           {g.name}
                         </div>
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                        <div
+                          style={{ fontSize: 11, color: C.muted, marginTop: 2 }}
+                        >
                           {g.tools.length} tool{g.tools.length !== 1 ? "s" : ""}
                         </div>
                       </div>
@@ -3207,10 +3215,14 @@ export default function App() {
                   lineHeight: 1.2,
                 }}
               >
-                {groups.length > 0 ? "All Tools" : "What are we working on today?"}
+                {groups.length > 0
+                  ? "All Tools"
+                  : "What are we working on today?"}
               </div>
               <div style={{ color: C.muted, marginTop: 6, fontSize: 14 }}>
-                {groups.length > 0 ? "Browse by goal area" : "Choose a goal area to get started"}
+                {groups.length > 0
+                  ? "Browse by goal area"
+                  : "Choose a goal area to get started"}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3343,7 +3355,9 @@ export default function App() {
                 No tools in this preset yet. Edit it via ☰
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              >
                 {activePreset.tools.map((t, i) => {
                   const meta = ALL_TOOLS.find((a) => a.id === t.id);
                   const dm = DOMAIN_META[meta?.domain];
@@ -3392,11 +3406,15 @@ export default function App() {
                         >
                           {meta?.label}
                         </div>
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                        <div
+                          style={{ fontSize: 11, color: C.muted, marginTop: 2 }}
+                        >
                           {dm?.label} · Ages {meta?.ages}
                         </div>
                       </div>
-                      <div style={{ color: dm?.color, fontSize: 20, opacity: 0.5 }}>
+                      <div
+                        style={{ color: dm?.color, fontSize: 20, opacity: 0.5 }}
+                      >
                         ›
                       </div>
                     </button>
@@ -3478,6 +3496,11 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Share Modal */}
+      {shareGroup && (
+        <ShareModal group={shareGroup} onClose={() => setShareGroup(null)} />
+      )}
 
       {/* Drawer */}
       <Drawer
