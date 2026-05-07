@@ -136,24 +136,24 @@ function QRCode({ value, size = 180 }) {
   );
 }
 
-// ─── ENCODE/DECODE client config into URL ─────────────────────────────────────
-function encodeClientConfig(client) {
+// ─── ENCODE/DECODE preset config into URL ─────────────────────────────────────
+function encodePresetConfig(group) {
   const payload = {
-    n: client.nickname,
-    t: client.tools.map((t) => ({ id: t.id, cfg: t.config })),
+    n: group.name,
+    t: group.tools.map((t) => ({ id: t.id, cfg: t.config })),
   };
   return btoa(JSON.stringify(payload));
 }
-function decodeClientConfig(str) {
+function decodePresetConfig(str) {
   try {
     return JSON.parse(atob(str));
   } catch {
     return null;
   }
 }
-function getToolURL(toolId) {
+function getPresetURL(group) {
   const base = "https://ot-app-sigma.vercel.app";
-  return `${base}?tool=${toolId}`;
+  return `${base}?preset=${encodePresetConfig(group)}`;
 }
 
 // ─── LOCAL STORAGE HELPERS ────────────────────────────────────────────────────
@@ -2020,12 +2020,10 @@ function ToolConfigEditor({ toolId, config, onChange }) {
 }
 
 // Client / Group detail — tool assignment + QR
-function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
+function ClientDetail({ entity, isGroup, onUpdate }) {
   const [view, setView] = useState("tools"); // tools | qr
   const [expandedTool, setExpandedTool] = useState(null);
   const [showToolPicker, setShowToolPicker] = useState(false);
-  const [applyGroupId, setApplyGroupId] = useState("");
-
   function toggleTool(toolId) {
     const exists = entity.tools.find((t) => t.id === toolId);
     if (exists)
@@ -2052,17 +2050,6 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
     [tools[idx], tools[swap]] = [tools[swap], tools[idx]];
     onUpdate({ ...entity, tools });
   }
-  function applyGroup() {
-    const g = groups.find((g) => g.id === applyGroupId);
-    if (!g) return;
-    const merged = [...entity.tools];
-    g.tools.forEach((gt) => {
-      if (!merged.find((t) => t.id === gt.id)) merged.push({ ...gt });
-    });
-    onUpdate({ ...entity, tools: merged });
-    setApplyGroupId("");
-  }
-
   return (
     <div>
       {/* Tab bar */}
@@ -2104,54 +2091,6 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
 
       {view === "tools" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Apply group preset */}
-          {!isGroup && groups.length > 0 && (
-            <div
-              style={{
-                background: "#F8F5FF",
-                borderRadius: 14,
-                padding: "12px 14px",
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>
-                Apply preset:
-              </span>
-              <select
-                value={applyGroupId}
-                onChange={(e) => setApplyGroupId(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  border: `1.5px solid ${C.lavender}40`,
-                  fontSize: 13,
-                  outline: "none",
-                  background: "white",
-                  minWidth: 120,
-                }}
-              >
-                <option value="">Choose preset…</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-              <Btn
-                onClick={applyGroup}
-                color={C.lavender}
-                small
-                disabled={!applyGroupId}
-              >
-                Apply
-              </Btn>
-            </div>
-          )}
-
           {entity.tools.length === 0 && (
             <div
               style={{
@@ -2407,19 +2346,7 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
             alignItems: "center",
           }}
         >
-          {isGroup ? (
-            <div
-              style={{
-                color: C.muted,
-                fontSize: 14,
-                textAlign: "center",
-                padding: "16px 0",
-              }}
-            >
-              Group presets can be applied to clients. Open a client to generate
-              their QR codes.
-            </div>
-          ) : entity.tools.length === 0 ? (
+          {entity.tools.length === 0 ? (
             <div
               style={{
                 color: C.muted,
@@ -2428,32 +2355,29 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
                 padding: "24px 0",
               }}
             >
-              Assign at least one tool to generate QR codes.
+              Assign at least one tool to generate a QR code.
             </div>
           ) : (
-            <>
-              <div
-                style={{
-                  background: C.tealBg,
-                  borderRadius: 14,
-                  padding: "11px 15px",
-                  width: "100%",
-                  fontSize: 12,
-                  color: C.navyLight,
-                  lineHeight: 1.6,
-                }}
-              >
-                <strong style={{ color: C.teal }}>📱 How to use:</strong> Show
-                the QR to the parent. They scan it with their camera and the
-                tool opens instantly in their browser.
-              </div>
-              {entity.tools.map((t) => {
-                const meta = ALL_TOOLS.find((a) => a.id === t.id);
-                const dm = DOMAIN_META[meta?.domain];
-                const url = getToolURL(t.id);
-                return (
+            (() => {
+              const url = getPresetURL(entity);
+              return (
+                <>
                   <div
-                    key={t.id}
+                    style={{
+                      background: C.tealBg,
+                      borderRadius: 14,
+                      padding: "11px 15px",
+                      width: "100%",
+                      fontSize: 12,
+                      color: C.navyLight,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <strong style={{ color: C.teal }}>📱 How to use:</strong>{" "}
+                    Show this QR to the family. When they scan it, their home
+                    screen will show these preset tasks first.
+                  </div>
+                  <div
                     style={{
                       background: "white",
                       borderRadius: 20,
@@ -2465,42 +2389,20 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
                   >
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        marginBottom: 14,
-                        textAlign: "left",
+                        fontWeight: 800,
+                        fontSize: 15,
+                        color: C.navy,
+                        fontFamily: "Lora,serif",
+                        marginBottom: 4,
                       }}
                     >
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 10,
-                          background: dm?.bg,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 20,
-                        }}
-                      >
-                        {meta?.icon}
-                      </div>
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 800,
-                            fontSize: 14,
-                            color: C.navy,
-                            fontFamily: "Lora,serif",
-                          }}
-                        >
-                          {meta?.label}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {dm?.label} · Ages {meta?.ages}
-                        </div>
-                      </div>
+                      {entity.name}
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}
+                    >
+                      {entity.tools.length} tool
+                      {entity.tools.length !== 1 ? "s" : ""}
                     </div>
                     <div
                       style={{
@@ -2527,14 +2429,12 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
                       {url}
                     </div>
                     <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(url);
-                      }}
+                      onClick={() => navigator.clipboard?.writeText(url)}
                       style={{
                         padding: "8px 20px",
                         borderRadius: 18,
                         border: "none",
-                        background: dm?.color || C.teal,
+                        background: C.teal,
                         color: "white",
                         fontWeight: "bold",
                         cursor: "pointer",
@@ -2544,223 +2444,12 @@ function ClientDetail({ entity, isGroup, onUpdate, groups, onApplyGroup }) {
                       Copy Link
                     </button>
                   </div>
-                );
-              })}
-            </>
+                </>
+              );
+            })()
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// Patient web view (from QR code)
-function PatientView({ clientData }) {
-  const [activeTool, setActiveTool] = useState(null);
-  const tools = clientData.t || [];
-  const name = clientData.n || "My Tools";
-  const tool = activeTool ? tools.find((t) => t.id === activeTool) : null;
-  const ToolComp = tool ? TOOL_COMPONENTS[tool.id] : null;
-  const toolMeta = tool ? ALL_TOOLS.find((t2) => t2.id === tool.id) : null;
-  const domMeta = toolMeta ? DOMAIN_META[toolMeta.domain] : null;
-
-  return (
-    <div
-      style={{
-        fontFamily: "'Nunito','Segoe UI',sans-serif",
-        minHeight: "100vh",
-        background: activeTool ? domMeta?.bg || C.cream : C.cream,
-      }}
-    >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Lora:wght@600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}@keyframes popIn{from{transform:scale(0.8);opacity:0}to{transform:scale(1);opacity:1}}@keyframes fadeUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          background: "rgba(250,248,244,0.95)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${C.border}`,
-          padding: "14px 18px",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
-        {activeTool && (
-          <button
-            onClick={() => setActiveTool(null)}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: "50%",
-              border: "none",
-              background: C.navy + "12",
-              color: C.navy,
-              cursor: "pointer",
-              fontSize: 16,
-            }}
-          >
-            ←
-          </button>
-        )}
-        <div>
-          <div
-            style={{
-              fontFamily: "Lora,Georgia,serif",
-              fontWeight: 700,
-              fontSize: 18,
-              color: C.navy,
-            }}
-          >
-            {activeTool ? toolMeta?.label : name}
-          </div>
-          {!activeTool && (
-            <div style={{ fontSize: 11, color: C.muted }}>
-              Your activity tools
-            </div>
-          )}
-        </div>
-      </div>
-      <div
-        style={{ padding: "18px 18px 48px", maxWidth: 480, margin: "0 auto" }}
-      >
-        {!activeTool && (
-          <>
-            <div
-              style={{
-                background: "white",
-                borderRadius: 18,
-                padding: "14px 18px",
-                marginBottom: 16,
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                boxShadow: "0 2px 12px rgba(42,157,143,0.08)",
-              }}
-            >
-              <span style={{ fontSize: 28 }}>👋</span>
-              <div>
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 15,
-                    color: C.navy,
-                    fontFamily: "Lora,serif",
-                  }}
-                >
-                  Hi {name}!
-                </div>
-                <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>
-                  Your OT has set up {tools.length} tool
-                  {tools.length !== 1 ? "s" : ""} for you.
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {tools.map((t, i) => {
-                const meta = ALL_TOOLS.find((a) => a.id === t.id);
-                const dm = DOMAIN_META[meta?.domain];
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTool(t.id)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      padding: "16px 18px",
-                      borderRadius: 18,
-                      border: "none",
-                      background: "white",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      boxShadow: `0 3px 14px ${dm?.color || C.teal}14`,
-                      animation: `fadeUp 0.35s ease ${i * 0.07}s both`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 14,
-                        background: dm?.bg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 24,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {meta?.icon}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: 800,
-                          fontSize: 15,
-                          color: C.navy,
-                          fontFamily: "Lora,serif",
-                        }}
-                      >
-                        {meta?.label}
-                      </div>
-                      <div
-                        style={{ fontSize: 11, color: C.muted, marginTop: 2 }}
-                      >
-                        {dm?.label}
-                      </div>
-                    </div>
-                    <div
-                      style={{ color: dm?.color, fontSize: 20, opacity: 0.5 }}
-                    >
-                      ›
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              style={{
-                marginTop: 24,
-                padding: "14px",
-                borderRadius: 14,
-                background: "white",
-                border: `1.5px dashed ${C.border}`,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 11, color: C.muted }}>
-                Want all OT tools?
-              </div>
-              <div
-                style={{
-                  fontWeight: "bold",
-                  fontSize: 13,
-                  color: C.teal,
-                  marginTop: 3,
-                }}
-              >
-                Download the full app →
-              </div>
-            </div>
-          </>
-        )}
-        {activeTool && ToolComp && (
-          <div
-            style={{
-              background: "white",
-              borderRadius: 24,
-              padding: 22,
-              boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-              animation: "fadeUp 0.3s ease",
-            }}
-          >
-            <ToolComp config={tool.config || {}} />
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -2794,31 +2483,16 @@ const DOMAINS = [
 ];
 
 // ─── HAMBURGER DRAWER ─────────────────────────────────────────────────────────
-function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
-  const [panel, setPanel] = useState("menu"); // menu | clients | groups | clientdetail | groupdetail
+function Drawer({ open, onClose, groups, setGroups }) {
+  const [panel, setPanel] = useState("menu"); // menu | groups | groupdetail
   const [activeId, setActiveId] = useState(null);
-  const [isGroup, setIsGroup] = useState(false);
-  const [newNickname, setNewNickname] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
-  const [showNewClient, setShowNewClient] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
 
-  function updateClient(updated) {
-    setClients(clients.map((c) => (c.id === updated.id ? updated : c)));
-  }
   function updateGroup(updated) {
     setGroups(groups.map((g) => (g.id === updated.id ? updated : g)));
   }
 
-  function addClient() {
-    if (!newNickname.trim()) return;
-    setClients([
-      ...clients,
-      { id: uid(), nickname: newNickname.trim(), tools: [] },
-    ]);
-    setNewNickname("");
-    setShowNewClient(false);
-  }
   function addGroup() {
     if (!newGroupName.trim()) return;
     setGroups([...groups, { id: uid(), name: newGroupName.trim(), tools: [] }]);
@@ -2826,22 +2500,17 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
     setShowNewGroup(false);
   }
 
-  const activeEntity = isGroup
-    ? groups.find((g) => g.id === activeId)
-    : clients.find((c) => c.id === activeId);
+  const activeEntity = groups.find((g) => g.id === activeId);
 
   function goBack() {
-    if (panel === "clientdetail" || panel === "groupdetail")
-      setPanel(isGroup ? "groups" : "clients");
+    if (panel === "groupdetail") setPanel("groups");
     else setPanel("menu");
   }
 
   const drawerTitle =
     {
       menu: "Menu",
-      clients: "Clients",
       groups: "Group Presets",
-      clientdetail: activeEntity?.nickname || "Client",
       groupdetail: activeEntity?.name || "Preset",
     }[panel] || "Menu";
 
@@ -2945,7 +2614,6 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
           {panel === "menu" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                ["clients", "👤", "Clients", "Manage client programs"],
                 ["groups", "📋", "Group Presets", "Saved tool configurations"],
               ].map(([p, icon, label, sub]) => (
                 <button
@@ -2986,160 +2654,10 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
             </div>
           )}
 
-          {panel === "clients" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {clients.length === 0 && (
-                <div
-                  style={{
-                    color: C.muted,
-                    fontSize: 13,
-                    textAlign: "center",
-                    padding: "20px 0",
-                  }}
-                >
-                  No clients yet.
-                </div>
-              )}
-              {clients.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    background: "white",
-                    borderRadius: 14,
-                    padding: "12px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: C.tealBg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 18,
-                    }}
-                  >
-                    👤
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{ fontWeight: 700, fontSize: 13, color: C.navy }}
-                    >
-                      {c.nickname}
-                    </div>
-                    <div style={{ fontSize: 11, color: C.muted }}>
-                      {c.tools.length} tool{c.tools.length !== 1 ? "s" : ""}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setActiveId(c.id);
-                      setIsGroup(false);
-                      setPanel("clientdetail");
-                    }}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 8,
-                      border: "none",
-                      background: C.tealBg,
-                      color: C.teal,
-                      fontWeight: "bold",
-                      cursor: "pointer",
-                      fontSize: 11,
-                    }}
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={() =>
-                      setClients(clients.filter((x) => x.id !== c.id))
-                    }
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 7,
-                      border: "none",
-                      background: "#FDF0EC",
-                      color: C.coral,
-                      cursor: "pointer",
-                      fontSize: 13,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {showNewClient ? (
-                <div
-                  style={{ background: "white", borderRadius: 14, padding: 14 }}
-                >
-                  <div
-                    style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}
-                  >
-                    Nickname or code (no real names)
-                  </div>
-                  <input
-                    autoFocus
-                    value={newNickname}
-                    onChange={(e) => setNewNickname(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addClient()}
-                    placeholder="e.g. Blue Star, Client 7…"
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      borderRadius: 9,
-                      border: `1.5px solid ${C.teal}`,
-                      fontSize: 13,
-                      outline: "none",
-                      marginBottom: 8,
-                    }}
-                  />
-                  <div style={{ display: "flex", gap: 7 }}>
-                    <Btn onClick={addClient} color={C.teal} small>
-                      Add
-                    </Btn>
-                    <Btn
-                      onClick={() => {
-                        setShowNewClient(false);
-                        setNewNickname("");
-                      }}
-                      color={C.muted}
-                      small
-                    >
-                      Cancel
-                    </Btn>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowNewClient(true)}
-                  style={{
-                    padding: "11px",
-                    borderRadius: 12,
-                    border: `2px dashed ${C.border}`,
-                    background: "transparent",
-                    color: C.muted,
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  + Add Client
-                </button>
-              )}
-            </div>
-          )}
-
           {panel === "groups" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 2 }}>
-                Save tool sets to quickly apply to clients.
+                Save tool sets to share via QR code.
               </div>
               {groups.length === 0 && (
                 <div
@@ -3193,7 +2711,6 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
                   <button
                     onClick={() => {
                       setActiveId(g.id);
-                      setIsGroup(true);
                       setPanel("groupdetail");
                     }}
                     style={{
@@ -3284,15 +2801,13 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
             </div>
           )}
 
-          {(panel === "clientdetail" || panel === "groupdetail") &&
-            activeEntity && (
-              <ClientDetail
-                entity={activeEntity}
-                isGroup={isGroup}
-                onUpdate={isGroup ? updateGroup : updateClient}
-                groups={groups}
-              />
-            )}
+          {panel === "groupdetail" && activeEntity && (
+            <ClientDetail
+              entity={activeEntity}
+              isGroup={true}
+              onUpdate={updateGroup}
+            />
+          )}
         </div>
       </div>
     </>
@@ -3302,13 +2817,19 @@ function Drawer({ open, onClose, clients, setClients, groups, setGroups }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const params = new URLSearchParams(window.location.search);
-  const clientParam = params.get("client");
   const toolParam = params.get("tool");
-  const clientData = clientParam ? decodeClientConfig(clientParam) : null;
+  const presetParam = params.get("preset");
 
-  const [clients, setClients] = useLocalStorage("ot_clients", []);
   const [groups, setGroups] = useLocalStorage("ot_groups", []);
+  const [homePreset, setHomePreset] = useLocalStorage("ot_home_preset", null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (presetParam) {
+      const decoded = decodePresetConfig(presetParam);
+      if (decoded) setHomePreset(decoded);
+    }
+  }, []);
 
   // Home nav state — jump straight to tool if ?tool= param present
   const initTool = toolParam && TOOL_COMPONENTS[toolParam] ? toolParam : null;
@@ -3329,8 +2850,6 @@ export default function App() {
     : null;
   const ToolComp = toolMeta ? TOOL_COMPONENTS[activeTool] : null;
   const domMeta = toolMeta ? DOMAIN_META[toolMeta.domain] : null;
-
-  if (clientData) return <PatientView clientData={clientData} />;
 
   const bgColor = activeTool
     ? domMeta?.bg || C.cream
@@ -3451,23 +2970,145 @@ export default function App() {
       <div
         style={{ padding: "20px 20px 48px", maxWidth: 480, margin: "0 auto" }}
       >
-        {/* Home — domain cards */}
-        {!activeDomain && (
+        {/* Home — preset tasks + domain cards */}
+        {!activeDomain && !activeTool && (
           <div style={{ animation: "fadeUp 0.4s ease" }}>
+            {/* Preset tasks section — shown first when a preset is active */}
+            {homePreset && homePreset.t && homePreset.t.length > 0 && (
+              <div style={{ marginBottom: 28 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "Lora,Georgia,serif",
+                        fontWeight: 700,
+                        fontSize: 18,
+                        color: C.navy,
+                      }}
+                    >
+                      {homePreset.n || "Preset Tasks"}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                      Your assigned activities
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setHomePreset(null)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      border: "none",
+                      background: C.coralBg,
+                      color: C.coral,
+                      cursor: "pointer",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
+                  {homePreset.t.map((t, i) => {
+                    const meta = ALL_TOOLS.find((a) => a.id === t.id);
+                    const dm = DOMAIN_META[meta?.domain];
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setActiveTool(t.id)}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 14,
+                          padding: "16px 18px",
+                          borderRadius: 18,
+                          border: "none",
+                          background: "white",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          boxShadow: `0 3px 14px ${dm?.color || C.teal}14`,
+                          animation: `fadeUp 0.35s ease ${i * 0.06}s both`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 46,
+                            height: 46,
+                            borderRadius: 13,
+                            background: dm?.bg,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 22,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {meta?.icon}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              fontSize: 15,
+                              color: C.navy,
+                              fontFamily: "Lora,serif",
+                            }}
+                          >
+                            {meta?.label}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: C.muted,
+                              marginTop: 2,
+                            }}
+                          >
+                            {dm?.label} · Ages {meta?.ages}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            color: dm?.color,
+                            fontSize: 20,
+                            opacity: 0.5,
+                          }}
+                        >
+                          ›
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: 24 }}>
               <div
                 style={{
                   fontFamily: "Lora,Georgia,serif",
-                  fontSize: 26,
+                  fontSize: homePreset ? 20 : 26,
                   fontWeight: 700,
                   color: C.navy,
                   lineHeight: 1.2,
                 }}
               >
-                What are we working on today?
+                {homePreset ? "All Tools" : "What are we working on today?"}
               </div>
               <div style={{ color: C.muted, marginTop: 6, fontSize: 14 }}>
-                Choose a goal area to get started
+                {homePreset
+                  ? "Browse by goal area"
+                  : "Choose a goal area to get started"}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3549,7 +3190,7 @@ export default function App() {
                 Beta v0.2
               </div>
               <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
-                10 tools · 3 domains · Client programs via ☰
+                10 tools · 3 domains · Presets via ☰
               </div>
             </div>
           </div>
