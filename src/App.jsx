@@ -3272,8 +3272,6 @@ export default function App() {
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        clients={clients}
-        setClients={setClients}
         groups={groups}
         setGroups={setGroups}
       />
